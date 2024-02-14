@@ -1,3 +1,6 @@
+import kha.Image;
+import kha.Assets;
+import kha.graphics4.TextureUnit;
 import kha.graphics5_.CompareMode;
 import kha.graphics4.ConstantLocation;
 import kha.math.FastVector3;
@@ -47,31 +50,55 @@ class Game
 		0.673, 0.211, 0.457, 0.820, 0.883, 0.371, 0.982, 0.099, 0.879
 	];
 
+	// Array of texture coords for each cube vertex
+	static var uvs:Array<Float> = [
+		0.000059, 0.000004, 0.000103, 0.336048, 0.335973, 0.335903,
+		1.000023, 0.000013, 0.667979, 0.335851, 0.999958, 0.336064,
+		0.667979, 0.335851, 0.336024, 0.671877, 0.667969, 0.671889,
+		1.000023, 0.000013, 0.668104, 0.000013, 0.667979, 0.335851,
+		0.000059, 0.000004, 0.335973, 0.335903, 0.336098, 0.000071,
+		0.667979, 0.335851, 0.335973, 0.335903, 0.336024, 0.671877,
+		1.000004, 0.671847, 0.999958, 0.336064, 0.667979, 0.335851,
+		0.668104, 0.000013, 0.335973, 0.335903, 0.667979, 0.335851,
+		0.335973, 0.335903, 0.668104, 0.000013, 0.336098, 0.000071,
+		0.000103, 0.336048, 0.000004, 0.671870, 0.336024, 0.671877,
+		0.000103, 0.336048, 0.336024, 0.671877, 0.335973, 0.335903,
+		0.667969, 0.671889, 1.000004, 0.671847, 0.667979, 0.335851
+	];
+
 	var vb:VertexBuffer;
 	var ib:IndexBuffer;
 	var pipeline:PipelineState;
 	var mvp:FastMatrix4;
 	var mvpId:ConstantLocation;
+	var textureId:TextureUnit;
+	var image:Image;
 
 	public function new()
 	{
 		var structure = new VertexStructure();
 		structure.add("pos", VertexData.Float3);
 		structure.add("col", VertexData.Float3);
-        var structureLength = 6;
+		structure.add("uv", VertexData.Float2);
+		var structureLength = 8;
 
 		pipeline = new PipelineState();
 		pipeline.inputLayout = [structure];
 		pipeline.fragmentShader = Shaders.simple_frag;
 		pipeline.vertexShader = Shaders.simple_vert;
-        pipeline.depthWrite = true;
-        pipeline.depthMode = CompareMode.Less;
+		pipeline.depthWrite = true;
+		pipeline.depthMode = CompareMode.Less;
 		// pipeline.colorAttachmentCount = 1;
 		// pipeline.colorAttachments[0] = TextureFormat.RGBA32;
 		// pipeline.depthStencilAttachment = DepthStencilFormat.Depth16;
 		pipeline.compile();
 
 		mvpId = pipeline.getConstantLocation("MVP");
+		textureId = pipeline.getTextureUnit("myTextureSampler");
+
+		image = Assets.images.uvtemplate;
+		// var px = image.getPixels();
+		// trace(px.length);
 
 		// Projection matrix: 45° Field of View, 4:3 ratio, 0.1-100 display range
 		var projection = FastMatrix4.perspectiveProjection(45.0, 4.0 / 3.0, 0.1, 100.0);
@@ -101,13 +128,16 @@ class Game
 			vbData.set(i * structureLength + 3, colors[i * 3]);
 			vbData.set(i * structureLength + 4, colors[i * 3 + 1]);
 			vbData.set(i * structureLength + 5, colors[i * 3 + 2]);
+			vbData.set(i * structureLength + 6, uvs[i * 2]);
+			vbData.set(i * structureLength + 7, uvs[i * 2 + 1]);
 		}
 		vb.unlock();
 
-        var indices:Array<Int> = [];
-        for (i in 0...Std.int(vertices.length / 3)) {
-            indices.push(i);
-        }
+		var indices:Array<Int> = [];
+		for (i in 0...Std.int(vertices.length / 3))
+		{
+			indices.push(i);
+		}
 
 		ib = new IndexBuffer(indices.length, StaticUsage);
 
@@ -127,6 +157,7 @@ class Game
 		var g = fb.g4;
 
 		g.setMatrix(mvpId, mvp);
+		g.setTexture(textureId, image);
 
 		g.begin();
 

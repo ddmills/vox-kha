@@ -1,5 +1,3 @@
-package;
-
 import kha.Window;
 import kha.Assets;
 import kha.Scheduler;
@@ -19,10 +17,9 @@ class Main
 
 	static function init(window:Window)
 	{
-		var game = new Game();
-
 		Assets.loadEverything(() ->
 		{
+			var game = new Game();
 			trace('Assets loaded.');
 			Scheduler.addTimeTask(game.update, 0, 1 / 60);
 			System.notifyOnFrames(game.render);

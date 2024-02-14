@@ -1,5 +1,5 @@
-let project = new Project('New Project');
+let project = new Project('Vox kha');
 project.addAssets('Assets/**');
-project.addShaders('Shaders/**');
-project.addSources('Sources');
+project.addShaders('src/shaders/**');
+project.addSources('src');
 resolve(project);
