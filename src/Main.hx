@@ -1,3 +1,4 @@
+import vox.Game;
 import kha.Window;
 import kha.Assets;
 import kha.Scheduler;

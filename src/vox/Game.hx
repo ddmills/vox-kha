@@ -1,5 +1,9 @@
+package vox;
+
+import kha.math.Vector3;
+import kha.math.Quaternion;
+import kha.graphics4.Graphics;
 import kha.Blob;
-import kha.graphics4.CullMode;
 import kha.Scheduler;
 import kha.input.KeyCode;
 import kha.input.Keyboard;
@@ -11,23 +15,16 @@ import kha.graphics5_.CompareMode;
 import kha.graphics4.ConstantLocation;
 import kha.math.FastVector3;
 import kha.math.FastMatrix4;
-import kha.Color;
-import kha.graphics4.DepthStencilFormat;
-import kha.graphics4.TextureFormat;
 import kha.Shaders;
 import kha.graphics5_.VertexData;
 import kha.graphics4.VertexStructure;
 import kha.graphics4.PipelineState;
-import kha.graphics4.IndexBuffer;
-import kha.graphics4.VertexBuffer;
 import kha.Framebuffer;
 
 class Game
 {
-	var vb:VertexBuffer;
-	var ib:IndexBuffer;
 	var pipeline:PipelineState;
-	var mvp:FastMatrix4;
+	var vp:FastMatrix4;
 	var mvpId:ConstantLocation;
 	var textureId:TextureUnit;
 	var image:Image;
@@ -36,8 +33,11 @@ class Game
 	var mouseSpeed = 0.005;
 
 	var position:FastVector3 = new FastVector3(0, 0, 5); // Initial position: on +Z
-	var horizontalAngle = 3.14; // Initial horizontal angle: toward -Z
+	var horizontalAngle = 0.0; // Initial horizontal angle: toward -Z
 	var verticalAngle = 0.0; // Initial vertical angle: none
+	var cubeAngle = 0.0;
+
+	var up = new Vector3(0, 1, 0);
 
 	var isMouseDown:Bool;
 	var mouseDeltaX:Int;
@@ -49,17 +49,58 @@ class Game
 	var moveBackward:Bool;
 	var strafeLeft:Bool;
 	var strafeRight:Bool;
+	var rotateCube:Bool;
 
 	var lastTime:Float;
 
 	var projection:FastMatrix4;
 
+	var scene:Object;
+	var camera:Object;
+	var cube1:Object;
+
+	private function prettyMatrix(m:FastMatrix4) : String
+	{
+		var s1 = '┌${m._00}, ${m._10}, ${m._20}, ${m._30}┐\n';
+		var s2 = '│${m._01}, ${m._11}, ${m._21}, ${m._31}│\n';
+		var s3 = '└${m._02}, ${m._12}, ${m._22}, ${m._32}┘\n';
+		var s4 = '└${m._03}, ${m._13}, ${m._23}, ${m._33}┘\n';
+		return '\n' + s1 + s2 + s3 + s4;
+	}
+
 	public function new()
 	{
+		// create cube mesh
 		var structure = new VertexStructure();
 		structure.add("pos", VertexData.Float3);
 		structure.add("uv", VertexData.Float2);
-		var structureLength = 5;
+		
+		var blob:Blob = Assets.blobs.cube_obj;
+		var obj = new ObjLoader(blob);
+		var mesh = new Mesh();
+		mesh.vertices = obj.data;
+		mesh.indices = obj.indices;
+		mesh.structure = structure;
+		mesh.updateBuffers();
+
+		scene = new Object('scene');
+		cube1 = new Object('cube1', scene);
+		var cube2 = new Object('cube2', cube1);
+
+		var d = scene.debug();
+		trace(d);
+
+		cube1.mesh = mesh;
+		cube2.mesh = mesh;
+
+		cube2.position.x = -2;
+		cube2.position.z = 3;
+		cube2.scale.y = 4;
+
+		var ninetyDeg = Math.PI / 2;
+		cube2.setEulerAngles(0, 0, ninetyDeg / 2);
+
+		position = new FastVector3(0, 2, -4);
 
 		Mouse.get().notify(onMouseDown, onMouseUp, onMouseMove, null);
 		Keyboard.get().notify(onKeyDown, onKeyUp);
@@ -70,7 +111,7 @@ class Game
 		pipeline.vertexShader = Shaders.simple_vert;
 		pipeline.depthWrite = true;
 		pipeline.depthMode = CompareMode.Less;
-		pipeline.cullMode = CullMode.Clockwise; // hide interior hidden faces. Important that verticies are in the right order
+		// pipeline.cullMode = CullMode.Clockwise; // hide interior hidden faces. Important that verticies are in the right order
 		// pipeline.colorAttachmentCount = 1;
 		// pipeline.colorAttachments[0] = TextureFormat.RGBA32;
 		// pipeline.depthStencilAttachment = DepthStencilFormat.Depth16;
@@ -84,41 +125,7 @@ class Game
 		// Projection matrix: 45° Field of View, 4:3 ratio, 0.1-100 display range
 		projection = FastMatrix4.perspectiveProjection(45.0, 4.0 / 3.0, 0.1, 100.0);
 
-		// Camera matrix
-		var view = FastMatrix4.lookAt(new FastVector3(3, 2, 2), // position in world space
-			new FastVector3(0, 0, 0), // look at the origin
-			new FastVector3(0, 1, 0), // "Y" is UP
-		);
-
-		// Model matrix
-		var model = FastMatrix4.identity(); // model will be at the origin
-
-		// multiplication order matters on matrices!
-		mvp = FastMatrix4.identity();
-		mvp = mvp.multmat(projection);
-		mvp = mvp.multmat(view);
-		mvp = mvp.multmat(model);
-
-		var blob:Blob = Assets.blobs.cube_obj;
-		var obj = new ObjLoader(blob);
-		var data = obj.data;
-		var indices = obj.indices;
-
-		vb = new VertexBuffer(Std.int(data.length / 3), structure, StaticUsage);
-
-		var vbData = vb.lock();
-		for (i in 0...vbData.length) {
-		  vbData[i] = data[i];
-		}
-		vb.unlock();
-
-		ib = new IndexBuffer(indices.length, StaticUsage);
-
-		var ibData = ib.lock();
-		for (i in 0...ibData.length) {
-		  ibData[i] = indices[i];
-		}
-		ib.unlock();
+		vp = FastMatrix4.identity();
 	}
 
 	public function update() {
@@ -160,20 +167,22 @@ class Game
 			var v = right.mult(deltaTime * speed * -1);
 			position = position.add(v);
 		}
+		if (rotateCube) {
+			var up = new Vector3(0, 1, 0);
+			cubeAngle += .01;
+			cube1.orientation = Quaternion.fromAxisAngle(up, cubeAngle);
+		}
 
 		var look = position.add(direction);
-
 		var view = FastMatrix4.lookAt(
 			position,
 			look,
 			up
 		);
-		var model = FastMatrix4.identity();
 
-		mvp = FastMatrix4.identity();
-		mvp = mvp.multmat(projection);
-		mvp = mvp.multmat(view);
-		mvp = mvp.multmat(model);
+		vp = FastMatrix4.identity();
+		vp = vp.multmat(projection);
+		vp = vp.multmat(view);
 
 		mouseDeltaX = 0;
 		mouseDeltaY = 0;
@@ -184,19 +193,30 @@ class Game
 		var fb = frames[0];
 		var g = fb.g4;
 
-		g.setMatrix(mvpId, mvp);
+		g.begin();
+		g.setPipeline(pipeline);
+		g.clear(Color.fromFloats(0.0, 0.0, 0.3), 1);
 		g.setTexture(textureId, image);
 
-		g.begin();
-
-		g.clear(Color.fromFloats(0.0, 0.0, 0.3), 1);
-
-		g.setPipeline(pipeline);
-		g.setVertexBuffer(vb);
-		g.setIndexBuffer(ib);
-		g.drawIndexedVertices();
+		renderObject(g, scene);
 
 		g.end();
+	}
+
+	function renderObject(g:Graphics, o:Object)
+	{
+		if (o.mesh != null) {
+			var mvp = vp.multmat(o.getWorldTransformationMatrix());
+			g.setMatrix(mvpId, mvp);
+			g.setVertexBuffer(o.mesh.vertexBuffer);
+			g.setIndexBuffer(o.mesh.indexBuffer);
+			g.drawIndexedVertices();
+		}
+
+		for (c in o.children)
+		{
+			renderObject(g, c);
+		}
 	}
 
 	function onMouseDown(button:Int, x:Int, y:Int)
@@ -220,26 +240,29 @@ class Game
 
 	function onKeyDown(key:KeyCode)
 	{
-		trace('key down', key);
-		if (key == KeyCode.Up)
+		if (key == KeyCode.W)
 			moveForward = true;
-		else if (key == KeyCode.Down)
+		else if (key == KeyCode.S)
 			moveBackward = true;
-		else if (key == KeyCode.Left)
+		else if (key == KeyCode.A)
 			strafeLeft = true;
-		else if (key == KeyCode.Right)
+		else if (key == KeyCode.D)
 			strafeRight = true;
+		else if (key == KeyCode.R)
+			rotateCube = true;
 	}
 
 	function onKeyUp(key:KeyCode)
 	{
-		if (key == KeyCode.Up)
+		if (key == KeyCode.W)
 			moveForward = false;
-		else if (key == KeyCode.Down)
+		else if (key == KeyCode.S)
 			moveBackward = false;
-		else if (key == KeyCode.Left)
+		else if (key == KeyCode.A)
 			strafeLeft = false;
-		else if (key == KeyCode.Right)
+		else if (key == KeyCode.D)
 			strafeRight = false;
+		else if (key == KeyCode.R)
+			rotateCube = false;
 	}
 }

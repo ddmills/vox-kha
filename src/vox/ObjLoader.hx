@@ -1,3 +1,5 @@
+package vox;
+
 import kha.Blob;
 
 class ObjLoader {
