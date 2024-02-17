@@ -1,5 +1,6 @@
 package vox;
 
+import kha.Color;
 import kha.math.Vector3;
 import kha.math.Quaternion;
 import kha.graphics4.Graphics;
@@ -80,18 +81,24 @@ class Game
 		mesh.compile();
 
 		scene = new Object('scene');
+
+		var line1 = new Object('line1', scene);
+		line1.renderable = new Line(new FastVector3(1, 1, 1), new FastVector3(10, 10, 10), Color.Pink);
+
 		cube1 = new Object('cube1', scene);
 		var cube2 = new Object('cube2', cube1);
 
 		var d = scene.debug();
 		trace(d);
 
-		cube1.mesh = mesh;
-		cube2.mesh = mesh;
+		cube1.renderable = mesh;
+		cube2.renderable = mesh;
 
 		cube2.position.x = -2;
 		cube2.position.z = 3;
+		cube2.scale.x = .5;
 		cube2.scale.y = 4;
+		cube2.scale.z = .5;
 
 		var ninetyDeg = Math.PI / 2;
 		cube2.setEulerAngles(0, 0, ninetyDeg / 2);
@@ -181,9 +188,9 @@ class Game
 
 	function renderObject(g:Graphics, o:Object)
 	{
-		if (o.mesh != null) {
+		if (o.renderable != null) {
 			var mvp = vp.multmat(o.getWorldTransformationMatrix());
-			o.mesh.draw(g, mvp);
+			o.renderable.render(g, mvp);
 		}
 
 		for (c in o.children)

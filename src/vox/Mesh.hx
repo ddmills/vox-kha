@@ -13,7 +13,7 @@ import kha.graphics4.IndexBuffer;
 import kha.graphics4.VertexBuffer;
 import kha.graphics4.VertexStructure;
 
-class Mesh {
+class Mesh implements Renderable {
     public var vertices: Array<Float>;
     public var indices: Array<Int>;
     public var structure: VertexStructure;
@@ -21,11 +21,11 @@ class Mesh {
     public var vertexBuffer:VertexBuffer;
     public var indexBuffer:IndexBuffer;
 
-    public var pipeline:PipelineState;
     public var vertexShader:VertexShader;
     public var fragementShader:FragmentShader;
-
 	public var image:Image;
+    
+    private var pipeline:PipelineState;
     private var textureId:TextureUnit;
     private var mvpId:ConstantLocation;
 
@@ -65,11 +65,10 @@ class Mesh {
 		mvpId = pipeline.getConstantLocation("MVP");
     }
 
-    public function draw(g:Graphics, mvp:FastMatrix4) 
-    {
+    public function render(g:Graphics, mvp:FastMatrix4) {
         g.setPipeline(pipeline);
-		g.setTexture(textureId, image);
         g.setMatrix(mvpId, mvp);
+		g.setTexture(textureId, image);
         g.setVertexBuffer(vertexBuffer);
         g.setIndexBuffer(indexBuffer);
         g.drawIndexedVertices();

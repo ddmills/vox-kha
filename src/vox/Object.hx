@@ -10,7 +10,7 @@ class Object
 	public var position:FastVector3;
 	public var orientation:Quaternion;
 	public var scale:FastVector3;
-	public var mesh:Mesh;
+	public var renderable:Renderable;
 
 	public var children:Array<Object>;
 	var parent:Object;
